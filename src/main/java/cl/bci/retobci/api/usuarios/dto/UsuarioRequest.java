@@ -46,5 +46,7 @@ public class UsuarioRequest {
     public void removePhone(PhoneRequest phone) {
         phones.remove(phone);
     }
-
+    
 }
+
+
