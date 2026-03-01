@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -15,6 +16,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UsuarioRequest {
+
+    private Long id;
 
     @NotBlank(message = "El nombre es requerido")
     private String name;
@@ -26,6 +29,22 @@ public class UsuarioRequest {
     @Pattern(regexp = "^(?:\\$2[aby]\\$.+|(?=.*[a-zA-Z])(?=.*[0-9]).{6,})$", message = "Contraseña debe ser o un hash BCrypt válido, o texto plano con al menos 6 caracteres, incluyendo letras y números")
     private String password;
 
-    private List<TelefonoDTO> phones;
+    private boolean isActive;
+    private String token;
+
+    private List<PhoneRequest> phones;
+
+    private LocalDateTime created;
+    private LocalDateTime modified;
+    private LocalDateTime lastLogin;
+
+    // MÉTODOS AUXILIARES IMPORTANTES
+    public void addPhone(PhoneRequest phone) {
+        phones.add(phone);
+    }
+
+    public void removePhone(PhoneRequest phone) {
+        phones.remove(phone);
+    }
 
 }

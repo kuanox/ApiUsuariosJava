@@ -1,13 +1,15 @@
 package cl.bci.retobci.api.usuarios.service;
 
 import cl.bci.retobci.api.usuarios.config.JwtService;
+import cl.bci.retobci.api.usuarios.dto.PhoneRequest;
 import cl.bci.retobci.api.usuarios.dto.RegistroUsuarioDTO;
-import cl.bci.retobci.api.usuarios.dto.TelefonoDTO;
 import cl.bci.retobci.api.usuarios.dto.UsuarioRequest;
 import cl.bci.retobci.api.usuarios.dto.UsuarioResponseDTO;
 import cl.bci.retobci.api.usuarios.model.Phone;
 import cl.bci.retobci.api.usuarios.model.Usuario;
+import cl.bci.retobci.api.usuarios.repository.PhonesRepository;
 import cl.bci.retobci.api.usuarios.repository.UsuarioRepository;
+import jakarta.transaction.Transactional;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,7 +19,9 @@ import org.springframework.validation.annotation.Validated;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @Data
@@ -34,13 +38,16 @@ public class UsuarioService {
     private String emailPattern;
 
     private final UsuarioRepository usuarioRepository;
+    private final PhonesRepository phonesRepository;
 
-    public UsuarioService(JwtService jwtService, PasswordEncoder passwordEncoder, UsuarioRepository usuarioRepository) {
+    public UsuarioService(JwtService jwtService, PasswordEncoder passwordEncoder, UsuarioRepository usuarioRepository, PhonesRepository phonesRepository) {
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.usuarioRepository = usuarioRepository;
+        this.phonesRepository = phonesRepository;
     }
 
+    @Transactional
     public Usuario register(RegistroUsuarioDTO registroUsuarioDTO) throws Exception {
 
         // Validamos que el email tenga un formato válido usando Pattern
@@ -59,28 +66,29 @@ public class UsuarioService {
             throw new Exception("La contraseña no cumple con los requisitos");
         }
 
-        // Convertir lista de TelefonoDTO a lista de Phone
-        var phones = registroUsuarioDTO.getPhones().stream()
-                .map(telefonoDTO -> {
-                    Phone phone = new Phone();
-                    phone.setNumber(telefonoDTO.getNumber());
-                    phone.setCitycode(telefonoDTO.getCitycode());
-                    phone.setCountrycode(telefonoDTO.getContrycode());
-                    return phone;
-                })
-                .toList();
-
         // Creamos el nuevo usuario con la contraseña encriptada
         var usuario = Usuario.builder()
                 .name( registroUsuarioDTO.getName() )
                 .email( registroUsuarioDTO.getEmail() )
                 .password( passwordEncoder.encode(registroUsuarioDTO.getPassword()) )
-                .phones( phones )
                 .created( LocalDateTime.now() )
                 .modified( LocalDateTime.now() )
                 .lastLogin( LocalDateTime.now() )
                 .isActive(true)
                 .build();
+
+        // Convertir lista de RegistroUsuarioDTO Phones a lista de Phone
+        registroUsuarioDTO.getPhones().stream()
+                .map(phoneRequest -> {
+                    // Aquí va el mapeo del teléfono
+                    Phone phone = new Phone();
+                    phone.setNumber(phoneRequest.getNumber());
+                    phone.setCitycode(phoneRequest.getCitycode());
+                    phone.setCountrycode(phoneRequest.getContrycode());
+                    return phone;
+                })
+                .filter(Objects::nonNull) // Filtra los valores null que puedan haber aparecido
+                .forEach(usuario::addPhone);
 
         // Se Generamos un token
         var token = jwtService.generateToken(usuario);
@@ -148,24 +156,25 @@ public class UsuarioService {
             // Limpiar los phones existentes para evitar conflictos con cascade
             usuario.getPhones().clear();
 
-            // Convertir TelefonoDTO a Phone antes de asignar
-            List<Phone> phones = usuarioRequest.getPhones().stream()
-                    .map(dto -> {
-                        Phone p = new Phone();
-                        p.setId(dto.getId());
-                        p.setNumber(dto.getNumber());
-                        p.setCitycode(dto.getCitycode());
-                        p.setCountrycode(dto.getContrycode());
-                        return p;
-                    }).toList();
-            usuario.setPhones(phones);
+            // Convertir PhoneRequest a Phone antes de asignar
+            List<Phone> updatedPhones = usuarioRequest.getPhones().stream()
+                    .map(phoneRequest -> {
+                        Phone phone = new Phone();
+                        phone.setId(phoneRequest.getId()); // Si el ID es proporcionado, lo asignamos; si no, se generará automáticamente
+                        phone.setNumber(phoneRequest.getNumber());
+                        phone.setCitycode(phoneRequest.getCitycode());
+                        phone.setCountrycode(phoneRequest.getContrycode());
+                        // Asegúrate de que si es necesario, también asignas el usuario a cada teléfono
+                        phone.setUsuario(usuario);  // si la relación bidireccional está configurada
+                        return phone;
+                    })
+                    .collect(Collectors.toList());
+
+            usuario.getPhones().addAll(updatedPhones);
+
         }
 
         usuario.setModified(LocalDateTime.now());
-        usuario.getPhones()
-                .forEach(phone -> {
-                    phone.setUser_id(usuario.getId());
-                }); // Asegurar que cada Phone tenga la referencia al Usuario
 
         return usuarioRepository.save(usuario);
     }
@@ -178,20 +187,20 @@ public class UsuarioService {
     }
 
     public UsuarioResponseDTO toUsuarioResponseDTO(Usuario usuario) {
-        System.out.println("Convirtiendo Usuario a UsuarioResponseDTO: " + usuario);
+        // Aseguramos que no haya NullPointerException
         return UsuarioResponseDTO.builder()
                 .id(usuario.getId())
                 .name(usuario.getName())
                 .email(usuario.getEmail())
                 .isActive(usuario.isActive())
-                .phones(usuario.getPhones().stream()
-                        .map(phone -> TelefonoDTO.builder()
+                .phones(usuario.getPhones() != null ? usuario.getPhones().stream()
+                        .map(phone -> PhoneRequest.builder()
                                 .id(phone.getId())
-                                .number(phone.getNumber())
-                                .citycode(phone.getCitycode())
-                                .contrycode(phone.getCountrycode())
+                                .number(phone.getNumber() != null ? phone.getNumber() : "")
+                                .citycode(phone.getCitycode() != null ? phone.getCitycode() : "")
+                                .contrycode(phone.getCountrycode() != null ? phone.getCountrycode() : "")
                                 .build())
-                        .toList())
+                        .collect(Collectors.toList()) : new ArrayList<>())  // Manejo de null para phones
                 .created(usuario.getCreated())
                 .modified(usuario.getModified())
                 .lastLogin(usuario.getLastLogin())

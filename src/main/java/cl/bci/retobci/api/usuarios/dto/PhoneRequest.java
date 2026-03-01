@@ -1,19 +1,18 @@
 package cl.bci.retobci.api.usuarios.dto;
 
+import cl.bci.retobci.api.usuarios.model.Usuario;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class RegistroUsuarioDTO {
-    private String name;
-    private String email;
-    private String password;
-    private List<PhoneRequest> phones;
+public class PhoneRequest {
+    private Long id;
+    private String number;
+    private String citycode;
+    private String contrycode;
 }

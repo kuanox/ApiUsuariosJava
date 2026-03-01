@@ -1,9 +1,8 @@
 package cl.bci.retobci.api.usuarios.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,6 +14,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Table(name = "phones")
 public class Phone {
 
     @Id
@@ -25,5 +25,10 @@ public class Phone {
     private String citycode;
     private String countrycode;
 
-    private Long user_id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_id", nullable = false)
+    @JsonIgnore  // Ignorar campo en serialización
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY) // Hacerlo solo escribible, no legible en JSON
+    private Usuario usuario;
+
 }
